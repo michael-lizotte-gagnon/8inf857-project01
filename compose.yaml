@@ -1,0 +1,31 @@
+services:
+  syslog-ng:
+    image: docker.io/balabit/syslog-ng:latest
+    # command: ["-V"]
+    # --no-caps fixes an ops not permitted from the kernel https://serverfault.com/questions/524518/error-setting-capabilities-capability-management-disabled
+    command: ["-F", "--no-caps", "-f", "/etc/syslog-ng/syslog-ng.conf"]
+    volumes:
+      - snort-logs:/var/log/snort:ro # <- yoink read-only log files from snort
+      - ./syslog-ng/syslog-ng.conf:/etc/syslog-ng/syslog-nf.conf:ro # also yoink and mount configs
+      - ./logs:/var/log # Bind output to /var/log, mount on local ./logs path for now
+    restart: unless-stopped
+    profiles: ["enabled"]
+  snort:
+    image: docker.io/vimagick/snort3:latest
+    # Pulled from image docs https://github.com/DevotionZhu/dockerfiles-vimagick/blob/master/snort/README.md
+    command: -q -c /etc/snort/snort.conf -y -i eth0
+    network_mode: host
+    cap_add:
+      # Both required to sniff packets from container
+      - NET_ADMIN
+    volumes:
+      - snort-logs:/var/log/snort # output of alerts
+      - ./snort-conf/snort.conf:/etc/snort/snort.conf
+      - ./snort-conf/rules:/etc/snort/rules
+    depends_on: 
+      - syslog-ng
+    # restart: unless-stopped
+    profiles: ["enabled"]
+
+volumes:
+  snort-logs:
