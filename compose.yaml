@@ -11,17 +11,19 @@ services:
     restart: unless-stopped
     profiles: ["enabled"]
   snort:
-    image: docker.io/vimagick/snort3:latest
+    image: snort3:local
+    build:
+      context: .
+      dockerfile: snort.Dockerfile
     # Pulled from image docs https://github.com/DevotionZhu/dockerfiles-vimagick/blob/master/snort/README.md
-    command: -q -c /etc/snort/snort.conf -y -i eth0
+    command: -q -c /usr/local/etc/snort/snort.lua -y -i eth0
     network_mode: host
     cap_add:
-      # Both required to sniff packets from container
       - NET_ADMIN
+      - NET_RAW
     volumes:
       - snort-logs:/var/log/snort # output of alerts
-      - ./snort-conf/snort.conf:/etc/snort/snort.conf
-      - ./snort-conf/rules:/etc/snort/rules
+      - ./snort-conf/snort.lua:/usr/local/etc/snort/snort.lua:ro
     depends_on: 
       - syslog-ng
     # restart: unless-stopped
