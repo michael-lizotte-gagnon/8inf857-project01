@@ -29,6 +29,20 @@ services:
       - syslog-ng
     # restart: unless-stopped
     profiles: ["enabled"]
+  dvwa:
+    image: docker.io/vulnerables/web-dvwa:latest
+    container_name: dvwa
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+    profiles: ["enabled"]
+  attacker:
+    build:
+      context: .
+      dockerfile: web_attack.Dockerfile
+    container_name: attacker
+    restart: "no"
+    profiles: ["enabled"]
 
 volumes:
   snort-logs:
