@@ -39,7 +39,7 @@ if not home_net then
     error("Couldn't find an IPv4 network for eth0")
 end
 
-HOME_NET = home_net
+HOME_NET = 'any'
 
 -- set up the external network addresses.
 -- (leave as "any" in most situations)
@@ -236,7 +236,11 @@ rate_filter =
 --alert_sfsocket = { }
 --alert_syslog = { }
 --unified2 = { }
-alert_json = { file = true }
+alert_json =
+{
+    file = true,
+    fields = 'timestamp pkt_num proto pkt_gen pkt_len dir src_ap dst_ap rule action msg'
+}
 
 -- packet logging
 -- you can enable with defaults from the command line with -L <log_type>
