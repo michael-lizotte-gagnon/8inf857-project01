@@ -21,7 +21,7 @@
 
 -- HOME_NET and EXTERNAL_NET must be set now
 -- setup the network addresses you are protecting
-local pipe = io.popen("ip -4 route show dev eth0 scope link")
+local pipe = io.popen("ip -4 route show dev podman1 scope link")
 if not pipe then
     error("Could not run ip")
 end
