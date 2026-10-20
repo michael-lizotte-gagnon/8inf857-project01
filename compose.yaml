@@ -34,6 +34,7 @@ services:
     environment:
       xpack.security.enabled: "false"
       discovery.type: "single-node"
+      ES_JAVA_OPTS: "-Xms1g -Xmx1g"
     volumes:
       - elasticsearch-data:/usr/share/elasticsearch/data
     ports:
@@ -78,6 +79,8 @@ services:
     profiles: ["enabled"]
   logstash:
     image: docker.io/logstash:9.5.5
+    environment:
+      LS_JAVA_OPTS: "-Xms512m -Xmx512m"
     cap_add:
       - DAC_READ_SEARCH
     volumes:
@@ -135,6 +138,34 @@ services:
       snort-mysql-test:
         condition: service_healthy
     profiles: ["test-snort-dos"]
+  snort-ssh-burst-test-client:
+    image: docker.io/library/python:3.13-alpine
+    entrypoint: ["python", "/scripts/trigger-snort-ssh-burst.py"]
+    volumes:
+      - ./scripts/trigger-snort-ssh-burst.py:/scripts/trigger-snort-ssh-burst.py:ro
+    depends_on:
+      snort:
+        condition: service_started
+      snort-mysql-test:
+        condition: service_healthy
+    profiles: ["test-snort-ssh-burst"]
+  snort-smb-traversal-test-server:
+    image: docker.io/library/python:3.13-alpine
+    entrypoint: ["python", "/scripts/snort-smb-dummy-server.py"]
+    volumes:
+      - ./scripts/snort-smb-dummy-server.py:/scripts/snort-smb-dummy-server.py:ro
+    profiles: ["test-snort-smb"]
+  snort-smb-traversal-test-client:
+    image: docker.io/library/python:3.13-alpine
+    entrypoint: ["python", "/scripts/trigger-snort-smb-traversal.py"]
+    volumes:
+      - ./scripts/trigger-snort-smb-traversal.py:/scripts/trigger-snort-smb-traversal.py:ro
+    depends_on:
+      snort:
+        condition: service_started
+      snort-smb-traversal-test-server:
+        condition: service_started
+    profiles: ["test-snort-smb"]
 
 volumes:
   elasticsearch-data:

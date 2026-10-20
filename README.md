@@ -114,6 +114,35 @@ request matching community SID 221 and one echo reply matching SID 222. This is
 a signature test, not a traffic flood. To use a non-default Podman connection,
 pass its name with `-Connection`.
 
+### SSH connection-burst detection
+
+The local SID 1000003 alerts when one source sends more than five TCP SYN
+packets to port 22 within 30 seconds. This is a connection-rate heuristic; it
+cannot determine whether any SSH authentication attempt failed because SSH
+encrypts authentication. Run the isolated test client to verify the alert:
+
+```powershell
+.\scripts\trigger-snort-ssh-burst.ps1
+```
+
+The test makes seven connection attempts to port 22 on the lab MySQL container
+and does not try credentials. Pass `-Connection <name>` if using a non-default
+Podman connection. Tune the threshold to your normal traffic before using this
+rule beyond the lab.
+
+### Triggering the SMB traversal signature
+
+Run the isolated test:
+
+```powershell
+.\scripts\trigger-snort-smb-traversal.ps1
+```
+
+Compose starts a dummy TCP listener on port 139 and a one-shot client that
+sends only the byte pattern matched by community SID 534. This is not a real
+SMB server, does not access files, and does not publish port 139 on the host.
+Pass `-Connection <name>` when using a non-default Podman connection.
+
 ---
 
 ## Snort
