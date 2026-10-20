@@ -34,6 +34,8 @@ services:
     container_name: dvwa
     ports:
       - "8080:80"
+    cap_add:
+      - NET_RAW
     restart: unless-stopped
     profiles: ["enabled"]
   attacker:
