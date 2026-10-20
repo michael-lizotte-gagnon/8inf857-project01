@@ -44,6 +44,22 @@ After the configs were validated, run the stack with \
 `podman compose -f compose.yaml up` \
 It should then start pulling all the images referenced in the `compose.yaml` file (only the first time). Logs should be contained in `/logs` of the current repo
 
+---
+### Snort alerts in Kibana
+
+Snort writes JSON alerts to the shared `snort-logs` volume. Logstash reads
+`alert_json.txt` from that volume and indexes events in Elasticsearch as
+`snort-alerts-YYYY.MM.dd`, using the Snort alert timestamp as `@timestamp`.
+Syslog-ng also writes a local copy to `logs/snort-alerts.log`.
+
+The `kibana-import` service waits for Kibana to become ready and imports
+`kibana/snort-alerts-dashboard.ndjson` automatically each time the stack starts.
+It creates the `snort-alerts-*` data view, a saved search, and a **Snort
+Alerts** dashboard showing the alert time, rule, action, protocol, source,
+destination, and packet length. The dashboard initially displays the last 30
+days. Open Kibana at <http://localhost:5601> to view it.
+---
+
 ## Snort
 Installing Snort is painfull, so I used an already existing image (docker.io/vimagick/snort3:latest)
 

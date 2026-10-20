@@ -36,10 +36,12 @@ end
 pipe:close()
 
 if not home_net then
-    error("Couldn't find an IPv4 network for eth0")
+    -- Switch to 'any' if necessary, sometimes `ip -4 routes show dev eth0 scope link` fails
+    HOME_NET = 'any'
+    print("Couldn't find an IPv4 network for eth0")
+else
+    HOME_NET = home_net
 end
-
-HOME_NET = home_net
 
 -- set up the external network addresses.
 -- (leave as "any" in most situations)
@@ -236,7 +238,11 @@ rate_filter =
 --alert_sfsocket = { }
 --alert_syslog = { }
 --unified2 = { }
-alert_json = { file = true }
+alert_json =
+{
+    file = true,
+    fields = 'timestamp pkt_num proto pkt_gen pkt_len dir src_ap dst_ap rule action msg'
+}
 
 -- packet logging
 -- you can enable with defaults from the command line with -L <log_type>

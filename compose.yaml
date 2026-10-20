@@ -27,8 +27,65 @@ services:
       - ./snort-conf/rules:/usr/local/etc/snort/rules:ro
     depends_on: 
       - syslog-ng
-    # restart: unless-stopped
+    restart: unless-stopped
+    profiles: ["enabled"]
+  elastic-search:
+    image: docker.io/elasticsearch:9.5.5
+    environment:
+      xpack.security.enabled: "false"
+      discovery.type: "single-node"
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    restart: unless-stopped
+    profiles: ["enabled"]
+  kibana:
+    image: docker.io/kibana:9.5.5
+    ports:
+      - "5601:5601"
+    environment:
+      ELASTICSEARCH_HOSTS: '["http://elastic-search:9200"]'
+      xpack.security.enabled: "false"
+    depends_on:
+      - elastic-search
+    restart: unless-stopped
+    profiles: ["enabled"]
+  kibana-import:
+    image: docker.io/curlimages/curl:8.12.1
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        attempt=0
+        until curl --fail --silent http://kibana:5601/api/status >/dev/null 2>&1; do
+          attempt=$$((attempt + 1))
+          if [ "$$attempt" -ge 60 ]; then
+            echo "Kibana did not become ready within 120 seconds." >&2
+            exit 1
+          fi
+          sleep 2
+        done
+        curl --fail --silent --show-error \
+          -X POST "http://kibana:5601/api/saved_objects/_import?overwrite=true" \
+          -H "kbn-xsrf: true" \
+          -F "file=@/usr/share/kibana-import/snort-alerts-dashboard.ndjson"
+    volumes:
+      - ./kibana/snort-alerts-dashboard.ndjson:/usr/share/kibana-import/snort-alerts-dashboard.ndjson:ro
+    depends_on:
+      - kibana
+    profiles: ["enabled"]
+  logstash:
+    image: docker.io/logstash:9.5.5
+    cap_add:
+      - DAC_READ_SEARCH
+    volumes:
+      - snort-logs:/var/log/snort:ro
+      - logstash-data:/usr/share/logstash/data
+      - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
+    depends_on:
+      - elastic-search
+    restart: unless-stopped
     profiles: ["enabled"]
 
 volumes:
   snort-logs:
+  logstash-data:
