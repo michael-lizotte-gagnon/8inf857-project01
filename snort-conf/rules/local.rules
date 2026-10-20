@@ -1,1 +1,1 @@
-alert tcp any any -> any any (msg:"LOCAL Snort pipeline test"; flow:to_server,established; content:"/snort-test"; http_uri; sid:1000001; rev:1;)
+alert tcp any any -> any any (msg:"LOCAL Snort pipeline test"; content:"GET /snort-test"; sid:1000001; rev:2;)
