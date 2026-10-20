@@ -16,7 +16,7 @@ services:
       context: .
       dockerfile: snort.Dockerfile
     # Pulled from image docs https://github.com/DevotionZhu/dockerfiles-vimagick/blob/master/snort/README.md
-    command: -q -c /usr/local/etc/snort/snort.lua -y -i eth0 -A alert_json -l /var/log/snort
+    command: -q -c /usr/local/etc/snort/snort.lua -y -i podman1 -k none --daq afpacket -A alert_json -l /var/log/snort
     network_mode: host
     cap_add:
       - NET_ADMIN
@@ -34,6 +34,8 @@ services:
     environment:
       xpack.security.enabled: "false"
       discovery.type: "single-node"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
     ports:
       - "9200:9200"
       - "9300:9300"
@@ -56,7 +58,8 @@ services:
     command:
       - |
         attempt=0
-        until curl --fail --silent http://kibana:5601/api/status >/dev/null 2>&1; do
+        until curl --fail --silent http://kibana:5601/api/status \
+          | grep -Eq '"overall"[[:space:]]*:[[:space:]]*\{[[:space:]]*"level"[[:space:]]*:[[:space:]]*"available"'; do
           attempt=$$((attempt + 1))
           if [ "$$attempt" -ge 60 ]; then
             echo "Kibana did not become ready within 120 seconds." >&2
@@ -85,7 +88,56 @@ services:
       - elastic-search
     restart: unless-stopped
     profiles: ["enabled"]
+  snort-mysql-test:
+    image: docker.io/library/mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: snort-test-root
+      MYSQL_DATABASE: snort_test
+      MYSQL_USER: snort_test
+      MYSQL_PASSWORD: snort-test-password
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p\"$${MYSQL_ROOT_PASSWORD}\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    depends_on:
+      - snort
+    restart: unless-stopped
+    profiles: ["enabled"]
+  snort-mysql-test-client:
+    image: docker.io/library/mysql:8.4
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        echo "Sending MySQL SHOW DATABASES test query..."
+        mysql --protocol=TCP --ssl-mode=DISABLED --get-server-public-key --host=snort-mysql-test --user=snort_test --execute='show databases'
+    environment:
+      MYSQL_PWD: snort-test-password
+    depends_on:
+      snort:
+        condition: service_started
+      snort-mysql-test:
+        condition: service_healthy
+    profiles: ["test-snort-1776"]
+  snort-icmp-test-client:
+    image: docker.io/library/python:3.13-alpine
+    entrypoint: ["python", "/scripts/trigger-snort-dos.py"]
+    cap_add:
+      - NET_RAW
+    volumes:
+      - ./scripts/trigger-snort-dos.py:/scripts/trigger-snort-dos.py:ro
+    depends_on:
+      snort:
+        condition: service_started
+      snort-mysql-test:
+        condition: service_healthy
+    profiles: ["test-snort-dos"]
 
 volumes:
+  elasticsearch-data:
   snort-logs:
   logstash-data:
+  mysql-data:
