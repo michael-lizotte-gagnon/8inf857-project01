@@ -114,6 +114,20 @@ and does not try credentials. Pass `-Connection <name>` if using a non-default
 Podman connection. Tune the threshold to your normal traffic before using this
 rule beyond the lab.
 
+### Triggering Snort port-scan alerts
+
+Run the isolated Nmap test:
+
+```powershell
+.\scripts\trigger-snort-port-scan.ps1
+```
+
+It performs a SYN scan of ports 1–1024 on the lab `snort-target` only. Snort's
+built-in inspector alerts are enabled, and the port-scan inspector watches
+`HOME_NET` with lab-friendly TCP thresholds. Nmap runs as a one-shot container
+removed afterward. Pass `-Connection <name>` when using a non-default Podman
+connection.
+
 ### Triggering the SMB traversal signature
 
 Run the isolated test:

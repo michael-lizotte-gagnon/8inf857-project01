@@ -135,6 +135,20 @@ services:
       snort-target:
         condition: service_healthy
     profiles: ["test-snort-ssh-burst"]
+  snort-port-scan-test-client:
+    image: snort-nmap:local
+    build:
+      context: .
+      dockerfile: snort-nmap.Dockerfile
+    cap_add:
+      - NET_RAW
+    command: ["-sS", "-n", "-Pn", "-T3", "-p", "1-1024", "snort-target"]
+    depends_on:
+      snort:
+        condition: service_started
+      snort-target:
+        condition: service_healthy
+    profiles: ["test-snort-port-scan"]
   snort-sql-obfuscation-web:
     image: snort-sql-obfuscation-web:local
     build:

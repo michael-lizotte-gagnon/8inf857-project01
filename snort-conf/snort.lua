@@ -98,6 +98,8 @@ dce_http_server = { }
 -- see snort_defaults.lua for default_*
 gtp_inspect = default_gtp
 port_scan = default_med_port_scan
+port_scan.watch_ip = HOME_NET
+port_scan.tcp_ports = { scans = 10, rejects = 5, nets = 60, ports = 10 }
 smtp = default_smtp
 
 ftp_server = default_ftp_server
@@ -166,7 +168,7 @@ classifications = default_classifications
 ips =
 {
     -- use this to enable decoder and inspector alerts
-    --enable_builtin_rules = true,
+    enable_builtin_rules = true,
 
     variables = default_variables,
     rules = [[
@@ -185,6 +187,18 @@ ips =
 ---------------------------------------------------------------------------
 -- 6. configure filters
 ---------------------------------------------------------------------------
+
+event_filter =
+{
+    { gid = 116, sid = 6, type = 'limit', track = 'by_src', count = 1, seconds = 60 },
+    { gid = 116, sid = 150, type = 'limit', track = 'by_src', count = 1, seconds = 60 },
+}
+
+-- Unicast ARP requests are expected on this container bridge.
+suppress =
+{
+    { gid = 112, sid = 1 },
+}
 
 -- below are examples of filters
 -- each table is a list of records
