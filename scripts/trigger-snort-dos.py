@@ -22,7 +22,7 @@ def send_echo(destination, packet_type, identifier, payload):
         sock.sendto(header + payload, (destination, 0))
 
 
-destination = socket.gethostbyname("snort-mysql-test")
+destination = socket.gethostbyname("snort-target")
 send_echo(destination, 8, 678, b"1234")
 send_echo(destination, 0, 0, b"AAAAAAAAAA")
 print(f"Sent one ICMP test packet for each signature to {destination}.")

@@ -4,14 +4,16 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$podmanArguments = @()
+$podmanConnectionArguments = @()
 if (-not [string]::IsNullOrWhiteSpace($Connection)) {
-    $podmanArguments += @('--connection', $Connection)
+    $podmanConnectionArguments += @('--connection', $Connection)
 }
-$podmanArguments += @(
+$composeProfileArguments = @(
     'compose',
     '--profile', 'enabled',
-    '--profile', 'test-snort-smb',
+    '--profile', 'test-snort-smb'
+)
+$podmanRunArguments = $podmanConnectionArguments + $composeProfileArguments + @(
     'run', '--rm', 'snort-smb-traversal-test-client'
 )
 
@@ -30,18 +32,29 @@ function Get-TargetAlertCount {
 
 $alertsBefore = Get-TargetAlertCount
 
-& podman @podmanArguments
-if ($LASTEXITCODE -ne 0) {
-    throw 'The SMB traversal signature test client failed.'
-}
-
-$alertDeadline = (Get-Date).AddSeconds(20)
-do {
-    if ((Get-TargetAlertCount) -gt $alertsBefore) {
-        Write-Output 'Success: Snort logged community SID 534.'
-        return
+try {
+    & podman @podmanRunArguments
+    if ($LASTEXITCODE -ne 0) {
+        throw 'The SMB traversal signature test client failed.'
     }
-    Start-Sleep -Seconds 1
-} while ((Get-Date) -lt $alertDeadline)
 
-throw "No SID 534 alert appeared in '$alertLog'. Check Snort capture, HOME_NET, and the community rules."
+    $alertDeadline = (Get-Date).AddSeconds(20)
+    do {
+        if ((Get-TargetAlertCount) -gt $alertsBefore) {
+            Write-Output 'Success: Snort logged community SID 534.'
+            return
+        }
+        Start-Sleep -Seconds 1
+    } while ((Get-Date) -lt $alertDeadline)
+
+    throw "No SID 534 alert appeared in '$alertLog'. Check Snort capture, HOME_NET, and the community rules."
+}
+finally {
+    $podmanStopArguments = $podmanConnectionArguments + $composeProfileArguments + @(
+        'stop', 'snort-smb-traversal-test-server'
+    )
+    & podman @podmanStopArguments
+    if ($LASTEXITCODE -ne 0) {
+        throw 'The SMB server failed to shut down.'
+    }
+}

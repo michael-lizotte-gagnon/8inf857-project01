@@ -91,40 +91,26 @@ services:
       - elastic-search
     restart: unless-stopped
     profiles: ["enabled"]
-  snort-mysql-test:
-    image: docker.io/library/mysql:8.4
+  snort-target:
+    image: snort-target:local
+    build:
+      context: .
+      dockerfile: snort-target.Dockerfile
     environment:
       MYSQL_ROOT_PASSWORD: snort-test-root
       MYSQL_DATABASE: snort_test
       MYSQL_USER: snort_test
       MYSQL_PASSWORD: snort-test-password
-    volumes:
-      - mysql-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p\"$${MYSQL_ROOT_PASSWORD}\" --silent"]
+      test: ["CMD-SHELL", "mariadb --protocol=TCP -h 127.0.0.1 -u\"$${MYSQL_USER}\" -p\"$${MYSQL_PASSWORD}\" -e 'SELECT 1' --silent"]
       interval: 5s
       timeout: 5s
       retries: 12
-      start_period: 30s
+      start_period: 10s
     depends_on:
       - snort
     restart: unless-stopped
     profiles: ["enabled"]
-  snort-mysql-test-client:
-    image: docker.io/library/mysql:8.4
-    entrypoint: ["/bin/sh", "-ec"]
-    command:
-      - |
-        echo "Sending MySQL SHOW DATABASES test query..."
-        mysql --protocol=TCP --ssl-mode=DISABLED --get-server-public-key --host=snort-mysql-test --user=snort_test --execute='show databases'
-    environment:
-      MYSQL_PWD: snort-test-password
-    depends_on:
-      snort:
-        condition: service_started
-      snort-mysql-test:
-        condition: service_healthy
-    profiles: ["test-snort-1776"]
   snort-icmp-test-client:
     image: docker.io/library/python:3.13-alpine
     entrypoint: ["python", "/scripts/trigger-snort-dos.py"]
@@ -135,7 +121,7 @@ services:
     depends_on:
       snort:
         condition: service_started
-      snort-mysql-test:
+      snort-target:
         condition: service_healthy
     profiles: ["test-snort-dos"]
   snort-ssh-burst-test-client:
@@ -146,9 +132,59 @@ services:
     depends_on:
       snort:
         condition: service_started
-      snort-mysql-test:
+      snort-target:
         condition: service_healthy
     profiles: ["test-snort-ssh-burst"]
+  snort-port-scan-test-client:
+    image: snort-nmap:local
+    build:
+      context: .
+      dockerfile: snort-nmap.Dockerfile
+    cap_add:
+      - NET_RAW
+    command: ["-sS", "-n", "-Pn", "-T3", "-p", "1-1024", "snort-target"]
+    depends_on:
+      snort:
+        condition: service_started
+      snort-target:
+        condition: service_healthy
+    profiles: ["test-snort-port-scan"]
+  snort-sql-obfuscation-web:
+    image: snort-sql-obfuscation-web:local
+    build:
+      context: .
+      dockerfile: snort-sql-web.Dockerfile
+    environment:
+      MYSQL_HOST: snort-target
+      MYSQL_USER: snort_test
+      MYSQL_PASSWORD: snort-test-password
+    depends_on:
+      snort-target:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "require('node:http').get('http://127.0.0.1/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
+      interval: 2s
+      timeout: 2s
+      retries: 10
+      start_period: 2s
+    profiles: ["test-snort-sql-obfuscation"]
+  snort-sql-obfuscation-test-client:
+    image: docker.io/curlimages/curl:8.12.1
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        curl --fail --silent --show-error \
+          "http://snort-sql-obfuscation-web/execute?query=SET%20SESSION%20sql_mode=%27PIPES_AS_CONCAT%27%3B%20SET%20@query=CHAR(83)%7C%7CCHAR(72)%7C%7CCHAR(79)%7C%7CCHAR(87)%7C%7CCHAR(32)%7C%7CCHAR(68)%7C%7CCHAR(65)%7C%7CCHAR(84)%7C%7CCHAR(65)%7C%7CCHAR(66)%7C%7CCHAR(65)%7C%7CCHAR(83)%7C%7CCHAR(69)%7C%7CCHAR(83)%3B%20PREPARE%20stmt%20FROM%20@query%3B%20EXECUTE%20stmt%3B%20DEALLOCATE%20PREPARE%20stmt"
+    depends_on:
+      snort:
+        condition: service_started
+      snort-sql-obfuscation-web:
+        condition: service_healthy
+    profiles: ["test-snort-sql-obfuscation"]
   snort-smb-traversal-test-server:
     image: docker.io/library/python:3.13-alpine
     entrypoint: ["python", "/scripts/snort-smb-dummy-server.py"]
@@ -171,4 +207,3 @@ volumes:
   elasticsearch-data:
   snort-logs:
   logstash-data:
-  mysql-data:

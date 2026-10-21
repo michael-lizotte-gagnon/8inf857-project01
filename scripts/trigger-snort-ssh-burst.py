@@ -2,7 +2,7 @@ import socket
 import time
 
 
-destination = socket.gethostbyname("snort-mysql-test")
+destination = socket.gethostbyname("snort-target")
 attempts = 7
 
 for _ in range(attempts):
